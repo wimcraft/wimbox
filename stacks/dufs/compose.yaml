@@ -14,7 +14,7 @@ services:
     restart: unless-stopped
     labels:
       - traefik.enable=true
-      - traefik.http.routers.dufs.rule=Host(`dufs.${BASE_DOMAIN}`)
+      - traefik.http.routers.dufs.rule=Host(`dufs.${BASE_DOMAIN}`) || Host(`dl.${BASE_DOMAIN}`)
       - traefik.http.routers.dufs.entrypoints=web
       - traefik.http.services.dufs.loadbalancer.server.port=5000
       - diun.enable=true

@@ -1,0 +1,211 @@
+{
+  "id": "relAlertsGhRss01",
+  "name": "GitHub release alerts",
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {},
+  "meta": {},
+  "nodes": [
+    {
+      "id": "6a1f0c9e-1b2d-4e8a-9c41-0f2b7d3e5a01",
+      "name": "PicoClaw releases",
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        0
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 6,
+              "unit": "hours"
+            }
+          ]
+        },
+        "feedUrl": "https://github.com/sipeed/picoclaw/releases.atom"
+      }
+    },
+    {
+      "id": "6a1f0c9e-1b2d-4e8a-9c41-0f2b7d3e5a02",
+      "name": "BookOrbit releases",
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        200
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 6,
+              "unit": "hours"
+            }
+          ]
+        },
+        "feedUrl": "https://github.com/bookorbit/bookorbit/releases.atom"
+      }
+    },
+    {
+      "id": "6a1f0c9e-1b2d-4e8a-9c41-0f2b7d3e5a06",
+      "name": "slk releases",
+      "type": "n8n-nodes-base.rssFeedReadTrigger",
+      "typeVersion": 1,
+      "position": [
+        0,
+        400
+      ],
+      "parameters": {
+        "pollTimes": {
+          "item": [
+            {
+              "mode": "everyX",
+              "value": 6,
+              "unit": "hours"
+            }
+          ]
+        },
+        "feedUrl": "https://github.com/gammons/slk/releases.atom"
+      }
+    },
+    {
+      "id": "6a1f0c9e-1b2d-4e8a-9c41-0f2b7d3e5a03",
+      "name": "Stable versions only",
+      "notes": "Drops nightly builds and rc/beta tags: the title must be a bare version like v1.2.3",
+      "type": "n8n-nodes-base.filter",
+      "typeVersion": 2.2,
+      "position": [
+        260,
+        200
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "b7e2d6a4-3c1f-4f0e-8a9b-2d5c6e7f8a01",
+              "leftValue": "={{ $json.title }}",
+              "rightValue": "^v?\\d+(\\.\\d+)+$",
+              "operator": {
+                "type": "string",
+                "operation": "regex"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "6a1f0c9e-1b2d-4e8a-9c41-0f2b7d3e5a04",
+      "name": "Not alerted before",
+      "notes": "The feed trigger re-emits a release whose notes get edited; this keys on the release URL so each one alerts once",
+      "type": "n8n-nodes-base.removeDuplicates",
+      "typeVersion": 2,
+      "position": [
+        520,
+        200
+      ],
+      "parameters": {
+        "operation": "removeItemsSeenInPreviousExecutions",
+        "dedupeValue": "={{ $json.link }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "6a1f0c9e-1b2d-4e8a-9c41-0f2b7d3e5a05",
+      "name": "Send to ntfy",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        780,
+        200
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://ntfy/",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ topic: 'wimbox-alerts-9f3c2a', title: $json.link.split('/')[4] + ' ' + $json.title + ' released', message: ($json.contentSnippet || 'No release notes').slice(0, 400), click: $json.link, tags: ['package'] }) }}",
+        "options": {}
+      },
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "ntfyAlertsCred01",
+          "name": "ntfy (wimbox-alerts)"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "PicoClaw releases": {
+      "main": [
+        [
+          {
+            "node": "Stable versions only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "BookOrbit releases": {
+      "main": [
+        [
+          {
+            "node": "Stable versions only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "slk releases": {
+      "main": [
+        [
+          {
+            "node": "Stable versions only",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Stable versions only": {
+      "main": [
+        [
+          {
+            "node": "Not alerted before",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Not alerted before": {
+      "main": [
+        [
+          {
+            "node": "Send to ntfy",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

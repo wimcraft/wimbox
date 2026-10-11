@@ -11,6 +11,8 @@ services:
     volumes:
       - ${APPDATA_ROOT}/syncthing:/config
       - ${MEDIA_ROOT}/syncthing:/data
+      # Obsidian vault (synced by the obsidian stack); share only the Drafting bits, see README
+      - ${MEDIA_ROOT}/obsidian:/obsidian
     labels:
       - "diun.enable=true"
       - "homepage.group=Files"

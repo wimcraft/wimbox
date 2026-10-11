@@ -34,6 +34,63 @@ When repointing an app at a new host path, keep its **container** path unchanged
 Kavita and Audiobookshelf store absolute container paths in their databases, so
 moving only the host side needs no database surgery.
 
+## Obsidian vault
+
+`stacks/obsidian/` keeps a copy of the vault on wimbox at `/mnt/media/obsidian`:
+
+- `obsidian-sync` runs the headless Obsidian Sync client (`ob sync --continuous`),
+  so the vault stays current without any Obsidian app open. **Obsidian Sync is the
+  source of truth.** Login state lives in `APPDATA_ROOT/obsidian/sync-home`.
+- `obsidian-backup` commits and pushes the vault to a private GitHub repo every
+  30 minutes (`OBSIDIAN_BACKUP_SCHEDULE`). It is strictly one-way: the vault is
+  mounted read-only (only `.git` is writable), and it never pulls, merges or
+  rebases, so it cannot write into notes that Obsidian Sync would spread to every
+  device. If the remote diverges, the push fails and an alert goes to ntfy.
+
+The backup deliberately skips the `.obsidian` config folder (plugins run to
+hundreds of MB), `Zulo/media|assets|videos`, images, audio, video, PDFs, archives,
+and any file over `OBSIDIAN_BACKUP_MAX_FILE_KB` (1 MiB). Ignore rules live in
+`.git/info/exclude`, regenerated on every run, so they never enter the vault. It
+also refuses to commit when over half the tracked files are missing (an unmounted
+or empty vault), and the container is unhealthy if no run succeeded for 2 hours.
+
+First-time setup:
+
+```
+cd stacks/obsidian
+docker compose build
+docker compose run --rm -it obsidian-sync ob login
+docker compose run --rm -it obsidian-sync ob sync-setup --vault "<vault name>" --path /vault --device-name wimbox
+```
+
+Do this into an empty `/mnt/media/obsidian` so the current vault is pulled from
+Obsidian Sync rather than merged with an old copy. Then add
+`APPDATA_ROOT/obsidian/backup-ssh/id_ed25519.pub` as a **deploy key with write
+access** on the backup repo, and `docker compose up -d`. On its first run the
+backup adopts the existing history of `OBSIDIAN_BACKUP_BRANCH` rather than
+starting an unrelated one. Optional, since wimbox needs no plugins:
+`ob sync-config --path /vault --configs ""` stops config/plugin sync to this host.
+
+Quick notes from the phone go through Syncthing, scoped to the Drafting paths only
+(add `${MEDIA_ROOT}/obsidian` as folder `/obsidian`, with this `.stignore`) so the
+whole vault is never shared and Syncthing and Obsidian Sync do not fight over it:
+
+```
+!/gravity.md
+!/Writings/Drafting
+*
+```
+
+## Immich image links
+
+`immich-public-proxy` runs next to Immich and Traefik sends `/share/*` and `/s/*` on
+`immich.<domain>` to it; the UI and API stay on Immich. A share of a single image is
+served as a raw image (only a ~1440px preview at `/share/<key>`, the original at
+`/share/photo/<key>/<asset>/original`), so `scripts/immich-upload.sh` (upload, share,
+print the original-file URL) gives a link that embeds in Obsidian. Immich's **External domain** setting must be
+`https://immich.<domain>`, and Cloudflare should bypass cache for `/share/video/*` and
+`/share/*/download`.
+
 ## Maintenance
 
 ### Docker image/build cache pruning

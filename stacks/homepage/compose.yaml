@@ -9,6 +9,7 @@ services:
       - ${APPDATA_ROOT}/homepage:/app/config
       - ./docker.yaml:/app/config/docker.yaml:ro
       - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ${MEDIA_ROOT}:/mnt/media:ro
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.homepage.rule=Host(`home.${BASE_DOMAIN}`)"

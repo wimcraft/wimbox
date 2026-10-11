@@ -31,6 +31,28 @@ services:
     networks:
       - traefik
 
+  # Serves only the links shared from Immich, on the same hostname as Immich itself:
+  # /share/<key> and /s/<slug> go here, everything else (UI, API) goes to immich-server.
+  # Shared images are served as raw files (/share/photo/<key>/<asset>/original), so the URL can be embedded.
+  immich-public-proxy:
+    image: alangrainger/immich-public-proxy:latest
+    container_name: immich_public_proxy
+    restart: unless-stopped
+    environment:
+      - IMMICH_URL=http://immich-server:2283
+      - PUBLIC_BASE_URL=https://immich.${BASE_DOMAIN}
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.immich-share.rule=Host(`immich.${BASE_DOMAIN}`) && (PathPrefix(`/share/`) || PathPrefix(`/s/`))"
+      - "traefik.http.routers.immich-share.entrypoints=web"
+      - "traefik.http.routers.immich-share.priority=100"
+      - "traefik.http.services.immich-share.loadbalancer.server.port=3000"
+      - "diun.enable=true"
+    depends_on:
+      - immich-server
+    networks:
+      - traefik
+
   immich-machine-learning:
     image: ghcr.io/immich-app/immich-machine-learning:release
     container_name: immich_machine_learning
@@ -39,6 +61,7 @@ services:
       - .env
     environment:
       - TZ=${TZ}
+      - MACHINE_LEARNING_MODEL_REVISION=v2
     volumes:
       - ${APPDATA_ROOT}/immich/model-cache:/cache
     labels:

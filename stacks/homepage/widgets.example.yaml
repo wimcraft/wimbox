@@ -4,7 +4,9 @@
 - resources:
     cpu: true
     memory: true
-    disk: /
+    disk:
+      - /
+      - /mnt/media
     uptime: true
     units: metric
 

@@ -1,0 +1,78 @@
+# Obsidian vault on wimbox: Obsidian Sync (headless) plus a git backup job.
+#
+# One-time setup, in order (see README.md):
+#   1. docker compose build
+#   2. docker compose run --rm -it obsidian-sync ob login
+#   3. docker compose run --rm -it obsidian-sync ob sync-setup --vault "<name>" --path /vault
+#   4. add the deploy key to the GitHub repo, then: docker compose up -d
+services:
+  obsidian-sync:
+    build: ./sync
+    image: wimbox/obsidian-sync:0.0.14
+    container_name: obsidian-sync
+    restart: unless-stopped
+    init: true
+    environment:
+      - TZ=${TZ}
+    volumes:
+      - ${MEDIA_ROOT}/obsidian:/vault
+      # Login/session state; wherever ob keeps it, it lives under its home directory
+      - ${APPDATA_ROOT}/obsidian/sync-home:/home/node
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+
+  obsidian-backup:
+    build: ./backup
+    image: wimbox/obsidian-backup:1
+    container_name: obsidian-backup
+    restart: unless-stopped
+    init: true
+    user: "1000:1000"
+    environment:
+      - TZ=${TZ}
+      - HOME=/tmp
+      - GIT_AUTHOR_NAME=${OBSIDIAN_GIT_NAME}
+      - GIT_AUTHOR_EMAIL=${OBSIDIAN_GIT_EMAIL}
+      - GIT_COMMITTER_NAME=${OBSIDIAN_GIT_NAME}
+      - GIT_COMMITTER_EMAIL=${OBSIDIAN_GIT_EMAIL}
+      - BACKUP_REMOTE=${OBSIDIAN_BACKUP_REMOTE}
+      - BACKUP_BRANCH=${OBSIDIAN_BACKUP_BRANCH:-main}
+      - BACKUP_SCHEDULE=${OBSIDIAN_BACKUP_SCHEDULE:-*/30 * * * *}
+      - BACKUP_MAX_FILE_KB=${OBSIDIAN_BACKUP_MAX_FILE_KB:-1024}
+      # Failure alerts go to the same ntfy server and topic as Diun; leave the endpoint empty to disable
+      - BACKUP_NTFY_ENDPOINT=${DIUN_NOTIF_NTFY_ENDPOINT:-}
+      - BACKUP_NTFY_TOKEN=${DIUN_NOTIF_NTFY_TOKEN:-}
+      - BACKUP_NTFY_TOPIC=${OBSIDIAN_BACKUP_NTFY_TOPIC:-${DIUN_NOTIF_NTFY_TOPIC:-obsidian-backup}}
+    volumes:
+      # The vault is read-only: the backup can never write to a note. Only .git is writable.
+      - ${MEDIA_ROOT}/obsidian:/vault:ro
+      - ${MEDIA_ROOT}/obsidian/.git:/vault/.git
+      - ${APPDATA_ROOT}/obsidian/backup-ssh:/ssh:ro
+    depends_on:
+      - obsidian-sync
+    networks:
+      # Only so the failure alert can reach ntfy by its internal name
+      - traefik
+    read_only: true
+    tmpfs:
+      - /tmp:mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      # Healthy if a run (even one with nothing to commit) succeeded in the last 2 hours
+      test: ["CMD-SHELL", "test -n \"$$(find /vault/.git/backup-last-ok -mmin -120 2>/dev/null)\""]
+      interval: 5m
+      timeout: 10s
+      retries: 1
+      start_period: 10m
+
+networks:
+  traefik:
+    external: true
