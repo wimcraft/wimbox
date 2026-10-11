@@ -1,0 +1,48 @@
+# Error tracker for my own apps (pepperlingo first). Sentry-protocol ingest at
+# /api/<project>/envelope/ must stay reachable from the internet; the web UI is
+# behind Bugsink's own login. SQLite in /data, no separate database.
+services:
+  bugsink:
+    image: bugsink/bugsink:2
+    container_name: bugsink
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - SECRET_KEY=${BUGSINK_SECRET_KEY}
+      # Creates the admin on the first start only; harmless afterwards.
+      - CREATE_SUPERUSER=${BUGSINK_ADMIN}
+      - PORT=8000
+      - BASE_URL=https://bugsink.${BASE_DOMAIN}
+      - BEHIND_HTTPS_PROXY=true
+      - TIME_ZONE=${TZ}
+      - SINGLE_USER=true
+      - USER_REGISTRATION=CB_NOBODY
+      # A leaked DSN can't fill the microSD: cap ingest and keep at most
+      # 2000 events per project (oldest go first).
+      - MAX_EVENTS_PER_PROJECT_PER_5_MINUTES=100
+      - MAX_EVENTS_PER_PROJECT_PER_HOUR=300
+      - MAX_RETENTION_PER_PROJECT_EVENT_COUNT=2000
+      - PHONEHOME=false
+    volumes:
+      # The image runs as uid 14237: sudo chown 14237:14237 ${APPDATA_ROOT}/bugsink
+      - ${APPDATA_ROOT}/bugsink:/data
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bugsink.rule=Host(`bugsink.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.bugsink.entrypoints=web"
+      - "traefik.http.services.bugsink.loadbalancer.server.port=8000"
+      - "traefik.http.middlewares.bugsink-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.bugsink.middlewares=bugsink-headers"
+      - "diun.enable=true"
+      - "homepage.group=System"
+      - "homepage.name=Bugsink"
+      - "homepage.icon=bugsink"
+      - "homepage.href=https://bugsink.${BASE_DOMAIN}"
+      - "homepage.description=Crash reports from my apps"
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true

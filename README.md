@@ -59,3 +59,30 @@ loginctl enable-linger "$USER"
 ```
 systemctl --user list-timers docker-prune.timer
 ```
+
+## Bugsink
+
+`stacks/bugsink` collects crash reports and in-app bug reports from my own
+apps (pepperlingo first) over the Sentry protocol. First start:
+
+```
+mkdir -p "$APPDATA_ROOT/bugsink" && sudo chown 14237:14237 "$APPDATA_ROOT/bugsink"
+docker compose -f stacks/bugsink/compose.yaml up -d
+```
+
+Add `bugsink.<domain>` to the Cloudflare tunnel like the other hosts. Do not
+put it behind Cloudflare Access: the apps post to `/api/<project>/envelope/`
+without a login. The web UI has its own (admin from `BUGSINK_ADMIN`; nobody
+can register).
+
+Then, in the UI: create a team and a project per app, and copy the project's
+DSN into that app's build (pepperlingo: the `REPORT_DSN` repository secret).
+For reading issues from scripts or Claude Code, create a token under Tokens
+and use the API at `/api/canonical/0/` (schema at
+`/api/canonical/0/schema/`); a token can read and change everything, so keep
+it out of repositories.
+
+For a push notification on each new issue, add a "Custom webhook" messaging
+service pointing at `https://ntfy.<domain>/bugsink` (the public hostname:
+Bugsink refuses webhooks to private addresses). If the topic needs a token,
+pass it in the URL with ntfy's `?auth=` parameter.
