@@ -1,0 +1,96 @@
+services:
+  bookorbit-db:
+    image: pgvector/pgvector:pg18
+    container_name: bookorbit-db
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=bookorbit
+      - POSTGRES_PASSWORD=${BOOKORBIT_DB_PASSWORD}
+      - POSTGRES_DB=bookorbit
+      - POSTGRES_INITDB_ARGS=--data-checksums
+      - PGDATA=/var/lib/postgresql/data/pgdata
+    volumes:
+      - ${APPDATA_ROOT}/bookorbit/postgres:/var/lib/postgresql/data
+    shm_size: 128mb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bookorbit -d bookorbit"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+    labels:
+      - "diun.enable=true"
+    networks:
+      - traefik
+
+  bookorbit:
+    image: ghcr.io/bookorbit/bookorbit:3.0.0
+    container_name: bookorbit
+    restart: unless-stopped
+    init: true
+    env_file:
+      - .env
+    environment:
+      - TZ=${TZ}
+      - NODE_ENV=production
+      - PORT=3000
+      - POSTGRES_HOST=bookorbit-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=bookorbit
+      - POSTGRES_PASSWORD=${BOOKORBIT_DB_PASSWORD}
+      - POSTGRES_DB=bookorbit
+      - JWT_SECRET=${BOOKORBIT_JWT_SECRET}
+      - PODCAST_ENCRYPTION_KEY=${BOOKORBIT_PODCAST_ENCRYPTION_KEY}
+      - SETUP_BOOTSTRAP_TOKEN=${BOOKORBIT_SETUP_TOKEN}
+      - APP_URL=https://bookorbit.${BASE_DOMAIN}
+      - CLIENT_URL=https://bookorbit.${BASE_DOMAIN}
+      - PUID=1000
+      - PGID=1000
+      - LIBRARY_BROWSE_ROOT=/books
+      - BOOK_DOCK_PATH=/inbox
+    volumes:
+      - ${MEDIA_ROOT}/library/ebooks:/books/ebooks
+      - ${MEDIA_ROOT}/library/comics:/books/comics
+      # read-only: Audiobookshelf owns playback and identifies items by path,
+      # so BookOrbit must never rename or rewrite audiobook files
+      - ${MEDIA_ROOT}/library/audiobooks:/books/audiobooks:ro
+      - ${MEDIA_ROOT}/library/inbox:/inbox
+      - ${APPDATA_ROOT}/bookorbit/data:/data
+    depends_on:
+      bookorbit-db:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+      - SETGID
+      - SETUID
+    security_opt:
+      - no-new-privileges:true
+    stop_grace_period: 30s
+    labels:
+      - "traefik.enable=true"
+      - "traefik.http.routers.bookorbit.rule=Host(`bookorbit.${BASE_DOMAIN}`)"
+      - "traefik.http.routers.bookorbit.entrypoints=web"
+      - "traefik.http.services.bookorbit.loadbalancer.server.port=3000"
+      - "traefik.http.middlewares.bookorbit-headers.headers.customrequestheaders.X-Forwarded-Proto=https"
+      - "traefik.http.routers.bookorbit.middlewares=bookorbit-headers"
+      - "diun.enable=true"
+      - "homepage.group=Media"
+      - "homepage.name=BookOrbit"
+      - "homepage.icon=bookorbit"
+      - "homepage.href=https://bookorbit.${BASE_DOMAIN}"
+      - "homepage.description=Ebook, comic &amp; audiobook library"
+    networks:
+      - traefik
+
+networks:
+  traefik:
+    external: true

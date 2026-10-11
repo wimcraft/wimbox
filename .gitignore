@@ -12,3 +12,7 @@ stacks/homepage/widgets.yaml
 stacks/homepage/settings.yaml
 stacks/homepage/custom.css
 stacks/homepage/custom.js
+
+# Python bytecode
+__pycache__/
+*.pyc

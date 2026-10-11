@@ -13,6 +13,9 @@ services:
     expose:
       - 17200
     volumes:
+      # Upstream's run script never applies `daemon off;`, so runit restarts
+      # nginx every two seconds and floods logs/error.log - see service-run.sh
+      - ./service-run.sh:/etc/service/koreader-sync-server/run:ro
       - ${APPDATA_ROOT}/kosync/logs/app:/app/koreader-sync-server/logs
       - ${APPDATA_ROOT}/kosync/logs/redis:/var/log/redis
       - ${APPDATA_ROOT}/kosync/redis:/var/lib/redis

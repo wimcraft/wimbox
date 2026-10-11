@@ -8,10 +8,10 @@ services:
     environment:
       - TZ=${TZ}
     volumes:
-      - ${MEDIA_ROOT}/kavita/manga:/manga
-      - ${MEDIA_ROOT}/kavita/comics:/comics
-      - ${MEDIA_ROOT}/kavita/books:/books
-      - ${MEDIA_ROOT}/kavita/config:/kavita/config
+      - ${MEDIA_ROOT}/library/manga:/manga
+      - ${MEDIA_ROOT}/library/comics:/comics
+      - ${MEDIA_ROOT}/library/ebooks:/books
+      - ${APPDATA_ROOT}/kavita/config:/kavita/config
     labels:
       - "traefik.enable=true"
       - "traefik.http.routers.kavita.rule=Host(`kavita.${BASE_DOMAIN}`)"
